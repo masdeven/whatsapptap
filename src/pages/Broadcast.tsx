@@ -367,10 +367,9 @@ function CampaignRunner({ campaignId }: { campaignId: string }) {
     showToast('Kampanye dihentikan', 'info');
   }
 
-  function openWhatsApp() {
-    if (!waUrl) return;
-    window.open(waUrl, '_blank');
+  function markChatOpened() {
     if (recipient && recipient.status === 'pending') {
+      // Fire-and-forget: update status without blocking the link navigation
       updateRecipientStatus(currentIndex, 'chat_opened');
     }
   }
@@ -457,10 +456,20 @@ function CampaignRunner({ campaignId }: { campaignId: string }) {
             </div>
 
             <div className="flex flex-col sm:flex-row gap-2">
-              <button onClick={openWhatsApp}
-                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium text-sm shadow-sm">
-                <MessageCircle className="w-5 h-5" /> Buka Chat WhatsApp
-              </button>
+              {waUrl ? (
+                <a
+                  href={waUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={markChatOpened}
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium text-sm shadow-sm no-underline cursor-pointer">
+                  <MessageCircle className="w-5 h-5" /> Buka Chat WhatsApp
+                </a>
+              ) : (
+                <div className="flex-1 px-4 py-3 bg-gray-100 text-gray-500 rounded-lg text-sm text-center">
+                  Nomor WhatsApp tidak valid — tidak dapat membuka chat
+                </div>
+              )}
             </div>
 
             {recipient.status === 'chat_opened' && (
@@ -481,7 +490,17 @@ function CampaignRunner({ campaignId }: { campaignId: string }) {
                   <CheckCircle2 className="w-4 h-4" /> Sudah ditandai terkirim
                 </span>
               )}
-              <button onClick={openWhatsApp} className="px-3 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">Buka Chat Lagi</button>
+              {waUrl ? (
+                <a
+                  href={waUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50 no-underline text-gray-700">
+                  Buka Chat Lagi
+                </a>
+              ) : (
+                <span className="px-3 py-2 text-gray-400 text-sm">Nomor tidak valid</span>
+              )}
               {recipient.status !== 'skipped' && <button onClick={handleSkip} className="px-3 py-2 border border-yellow-200 text-yellow-700 rounded-lg text-sm hover:bg-yellow-50 flex items-center gap-1"><SkipForward className="w-3.5 h-3.5" /> Lewati</button>}
               {recipient.status !== 'failed' && <button onClick={handleFail} className="px-3 py-2 border border-red-200 text-red-600 rounded-lg text-sm hover:bg-red-50">Tandai Gagal</button>}
             </div>

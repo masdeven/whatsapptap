@@ -4,6 +4,7 @@ import { db } from '../db';
 import { useAppContext } from '../App';
 import type { Template } from '../types';
 import { generateId, formatDate, renderTemplate, findUnknownPlaceholders } from '../utils';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 export default function Templates() {
   const { settings, showToast } = useAppContext();
@@ -11,6 +12,8 @@ export default function Templates() {
   const [showEditor, setShowEditor] = useState(false);
   const [editTemplate, setEditTemplate] = useState<Template | null>(null);
   const [loading, setLoading] = useState(true);
+  const [confirmDelete, setConfirmDelete] = useState<{ open: boolean; id: string; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => { loadTemplates(); }, []);
 
@@ -21,15 +24,23 @@ export default function Templates() {
     setLoading(false);
   }
 
-  async function deleteTemplate(id: string) {
+  function requestDeleteTemplate(template: Template) {
+    setConfirmDelete({ open: true, id: template.id, name: template.name });
+  }
+
+  async function confirmDeleteTemplate() {
+    if (!confirmDelete) return;
+    setDeleting(true);
     try {
-      if (!window.confirm('Hapus template ini?')) return;
-      await db.templates.delete(id);
+      await db.templates.delete(confirmDelete.id);
       showToast('Template dihapus', 'success');
       await loadTemplates();
+      setConfirmDelete(null);
     } catch (error) {
       console.error('Error deleting template:', error);
       showToast('Gagal menghapus template', 'error');
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -92,7 +103,7 @@ export default function Templates() {
                     <button onClick={() => duplicateTemplate(t)} className="p-2 hover:bg-gray-100 rounded-lg" title="Duplikasi">
                       <Copy className="w-4 h-4 text-gray-500" />
                     </button>
-                    <button onClick={() => deleteTemplate(t.id)} className="p-2 hover:bg-red-50 rounded-lg" title="Hapus">
+                    <button onClick={() => requestDeleteTemplate(t)} className="p-2 hover:bg-red-50 rounded-lg" title="Hapus">
                       <Trash2 className="w-4 h-4 text-red-500" />
                     </button>
                   </div>
@@ -121,6 +132,23 @@ export default function Templates() {
           onClose={() => { setShowEditor(false); setEditTemplate(null); }}
         />
       )}
+
+      {/* Confirm Delete Template */}
+      <ConfirmDialog
+        open={confirmDelete?.open ?? false}
+        title="Hapus Template?"
+        description={
+          <>
+            <p>Template <strong>"{confirmDelete?.name}"</strong> akan dihapus permanen.</p>
+            <p className="mt-2 text-gray-500">Template yang sudah digunakan dalam kampanye tetap tersimpan sebagai snapshot di riwayat kampanye.</p>
+          </>
+        }
+        confirmLabel="Hapus Template"
+        variant="danger"
+        loading={deleting}
+        onConfirm={confirmDeleteTemplate}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </div>
   );
 }

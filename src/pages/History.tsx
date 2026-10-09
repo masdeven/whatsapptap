@@ -6,6 +6,7 @@ import { useAppContext } from '../App';
 import type { Campaign } from '../types';
 import { formatDate, formatDateTime, getRecipientStatusLabel } from '../utils';
 import Papa from 'papaparse';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 export default function HistoryPage() {
   const { showToast } = useAppContext();
@@ -15,6 +16,8 @@ export default function HistoryPage() {
   const [filterStatus, setFilterStatus] = useState('');
   const [loading, setLoading] = useState(true);
   const [detailCampaign, setDetailCampaign] = useState<Campaign | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ open: boolean; id: string; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => { loadCampaigns(); }, []);
 
@@ -25,15 +28,23 @@ export default function HistoryPage() {
     setLoading(false);
   }
 
-  async function deleteCampaign(id: string) {
+  function requestDeleteCampaign(campaign: Campaign) {
+    setConfirmDelete({ open: true, id: campaign.id, name: campaign.name });
+  }
+
+  async function confirmDeleteCampaign() {
+    if (!confirmDelete) return;
+    setDeleting(true);
     try {
-      if (!window.confirm('Hapus kampanye ini beserta seluruh riwayatnya?')) return;
-      await db.campaigns.delete(id);
+      await db.campaigns.delete(confirmDelete.id);
       showToast('Kampanye dihapus', 'success');
       await loadCampaigns();
+      setConfirmDelete(null);
     } catch (error) {
       console.error('Error deleting campaign:', error);
       showToast('Gagal menghapus kampanye', 'error');
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -142,7 +153,7 @@ export default function HistoryPage() {
                     <button onClick={() => exportReport(c)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-gray-50 flex items-center gap-1">
                       <Download className="w-3.5 h-3.5" /> CSV
                     </button>
-                    <button onClick={() => deleteCampaign(c.id)} className="px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-sm hover:bg-red-50 flex items-center gap-1">
+                    <button onClick={() => requestDeleteCampaign(c)} className="px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-sm hover:bg-red-50 flex items-center gap-1">
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -152,6 +163,23 @@ export default function HistoryPage() {
           })}
         </div>
       )}
+
+      {/* Confirm Delete Campaign */}
+      <ConfirmDialog
+        open={confirmDelete?.open ?? false}
+        title="Hapus Kampanye?"
+        description={
+          <>
+            <p>Kampanye <strong>"{confirmDelete?.name}"</strong> beserta seluruh riwayat dan datanya akan dihapus permanen.</p>
+            <p className="mt-2 text-gray-500">Tindakan ini tidak dapat dibatalkan.</p>
+          </>
+        }
+        confirmLabel="Hapus Kampanye"
+        variant="danger"
+        loading={deleting}
+        onConfirm={confirmDeleteCampaign}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </div>
   );
 }

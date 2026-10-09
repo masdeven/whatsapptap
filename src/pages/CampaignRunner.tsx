@@ -34,6 +34,7 @@ import {
   getRecipientStatusLabel,
   getRecipientStatusColor
 } from '../utils';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 interface Props {
   campaignId: string;
@@ -52,6 +53,8 @@ export default function CampaignRunner({ campaignId }: Props) {
   const [showRecipientList, setShowRecipientList] = useState(false);
   const [filterStatus, setFilterStatus] = useState('');
   const [loading, setLoading] = useState(true);
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   /**
    * Muat data kampanye dari database
@@ -197,9 +200,9 @@ export default function CampaignRunner({ campaignId }: Props) {
 
   /** Hentikan kampanye sepenuhnya */
   async function handleCancel() {
+    if (!campaign) return;
+    setCancelling(true);
     try {
-      if (!campaign) return;
-      if (!window.confirm('Hentikan kampanye ini? Progres yang sudah ada akan tetap tersimpan.')) return;
       const updated: Campaign = {
         ...campaign,
         status: 'cancelled',
@@ -208,9 +211,12 @@ export default function CampaignRunner({ campaignId }: Props) {
       await db.campaigns.put(updated);
       setCampaign(updated);
       showToast('Kampanye dihentikan', 'info');
+      setConfirmCancel(false);
     } catch (error) {
       console.error('Error cancelling campaign:', error);
       showToast('Gagal menghentikan kampanye', 'error');
+    } finally {
+      setCancelling(false);
     }
   }
 
@@ -300,7 +306,7 @@ export default function CampaignRunner({ campaignId }: Props) {
           )}
           {(campaign.status === 'running' || campaign.status === 'paused') && (
             <button
-              onClick={handleCancel}
+              onClick={() => setConfirmCancel(true)}
               className="px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-sm hover:bg-red-50 flex items-center gap-1"
             >
               <XCircle className="w-3.5 h-3.5" /> Hentikan
@@ -556,6 +562,24 @@ export default function CampaignRunner({ campaignId }: Props) {
           </div>
         </div>
       )}
+
+      {/* Confirm Cancel Campaign */}
+      <ConfirmDialog
+        open={confirmCancel}
+        title="Hentikan Kampanye?"
+        description={
+          <>
+            <p>Kampanye <strong>"{campaign?.name}"</strong> akan dihentikan.</p>
+            <p className="mt-2 text-gray-500">Progres yang sudah ada akan tetap tersimpan dan dapat dilihat di riwayat.</p>
+          </>
+        }
+        confirmLabel="Hentikan Kampanye"
+        cancelLabel="Lanjutkan Kirim"
+        variant="warning"
+        loading={cancelling}
+        onConfirm={handleCancel}
+        onCancel={() => setConfirmCancel(false)}
+      />
     </div>
   );
 }

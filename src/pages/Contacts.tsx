@@ -24,6 +24,7 @@ import type { Contact, ConsentStatus } from '../types';
 import { normalizePhone, generateId, getConsentLabel, getConsentColor } from '../utils';
 import ContactModal from '../components/ContactModal';
 import ImportWizard from '../components/ImportWizard';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 export default function Contacts() {
   const { settings, showToast } = useAppContext();
@@ -45,6 +46,9 @@ export default function Contacts() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editContact, setEditContact] = useState<Contact | null>(null);
   const [showImport, setShowImport] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<{ open: boolean; id: string; name: string } | null>(null);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   /** Muat semua kontak dari database */
   useEffect(() => {
@@ -74,31 +78,47 @@ export default function Contacts() {
 
   // ===== AKSI INDIVIDUAL =====
 
-  async function deleteContact(id: string) {
+  function requestDeleteContact(contact: Contact) {
+    setConfirmDelete({ open: true, id: contact.id, name: contact.name });
+  }
+
+  async function confirmDeleteContact() {
+    if (!confirmDelete) return;
+    setDeleting(true);
     try {
-      if (!window.confirm('Hapus kontak ini?')) return;
-      await db.contacts.delete(id);
+      await db.contacts.delete(confirmDelete.id);
       showToast('Kontak dihapus', 'success');
       await loadData();
+      setConfirmDelete(null);
     } catch (error) {
       console.error('Error deleting contact:', error);
       showToast('Gagal menghapus kontak', 'error');
+    } finally {
+      setDeleting(false);
     }
   }
 
   // ===== AKSI MASSAL (BULK) =====
 
-  async function deleteSelected() {
+  function requestBulkDelete() {
+    if (selected.size === 0) return;
+    setConfirmBulkDelete(true);
+  }
+
+  async function confirmBulkDeleteAction() {
+    setDeleting(true);
     try {
-      if (selected.size === 0) return;
-      if (!window.confirm(`Hapus ${selected.size} kontak terpilih?`)) return;
       await db.contacts.bulkDelete(Array.from(selected));
+      const count = selected.size;
       setSelected(new Set());
-      showToast(`${selected.size} kontak dihapus`, 'success');
+      showToast(`${count} kontak dihapus`, 'success');
       await loadData();
+      setConfirmBulkDelete(false);
     } catch (error) {
       console.error('Error deleting contacts:', error);
       showToast('Gagal menghapus kontak', 'error');
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -258,7 +278,7 @@ export default function Contacts() {
               Nonaktifkan
             </button>
             <button
-              onClick={deleteSelected}
+              onClick={requestBulkDelete}
               className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs"
             >
               Hapus
@@ -368,7 +388,7 @@ export default function Contacts() {
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            deleteContact(c.id);
+                            requestDeleteContact(c);
                           }}
                           className="p-2 hover:bg-red-50 rounded cursor-pointer"
                           title="Hapus kontak"
@@ -440,6 +460,40 @@ export default function Contacts() {
           }}
         />
       )}
+
+      {/* Confirm Delete Single Contact */}
+      <ConfirmDialog
+        open={confirmDelete?.open ?? false}
+        title="Hapus Kontak?"
+        description={
+          <>
+            <p>Kontak <strong>{confirmDelete?.name}</strong> akan dihapus permanen.</p>
+            <p className="mt-2 text-gray-500">Tindakan ini tidak dapat dibatalkan.</p>
+          </>
+        }
+        confirmLabel="Hapus Kontak"
+        variant="danger"
+        loading={deleting}
+        onConfirm={confirmDeleteContact}
+        onCancel={() => setConfirmDelete(null)}
+      />
+
+      {/* Confirm Bulk Delete */}
+      <ConfirmDialog
+        open={confirmBulkDelete}
+        title="Hapus Kontak Terpilih?"
+        description={
+          <>
+            <p><strong>{selected.size} kontak</strong> akan dihapus permanen.</p>
+            <p className="mt-2 text-gray-500">Tindakan ini tidak dapat dibatalkan.</p>
+          </>
+        }
+        confirmLabel={`Hapus ${selected.size} Kontak`}
+        variant="danger"
+        loading={deleting}
+        onConfirm={confirmBulkDeleteAction}
+        onCancel={() => setConfirmBulkDelete(false)}
+      />
     </div>
   );
 }

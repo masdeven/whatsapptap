@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { Download, Upload, Trash2, AlertTriangle, Shield, Database, Phone, Save } from 'lucide-react';
 import { db, exportAllData, importBackup, saveSettings } from '../db';
 import { useAppContext } from '../App';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 export default function SettingsPage() {
   const { settings, refreshSettings, showToast } = useAppContext();
@@ -10,6 +11,9 @@ export default function SettingsPage() {
   const [showRestore, setShowRestore] = useState(false);
   const [restoreData, setRestoreData] = useState<any>(null);
   const [restoreMode, setRestoreMode] = useState<'merge' | 'replace'>('merge');
+  const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
+  const [confirmDeleteCampaigns, setConfirmDeleteCampaigns] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function handleSaveSettings() {
@@ -68,29 +72,34 @@ export default function SettingsPage() {
   }
 
   async function handleDeleteAll() {
+    setDeleting(true);
     try {
-      if (!window.confirm('PERINGATAN: Semua data akan dihapus permanen! Sebaiknya buat backup terlebih dahulu. Lanjutkan?')) return;
-      if (!window.confirm('Apakah Anda yakin? Tindakan ini tidak dapat dibatalkan.')) return;
       await db.contacts.clear();
       await db.templates.clear();
       await db.campaigns.clear();
       await saveSettings({ defaultCountryCode: '62', fallbackName: 'Kak', lastActiveCampaignId: null });
       await refreshSettings();
       showToast('Semua data telah dihapus', 'success');
+      setConfirmDeleteAll(false);
     } catch (error) {
       console.error('Error deleting all data:', error);
       showToast('Gagal menghapus data', 'error');
+    } finally {
+      setDeleting(false);
     }
   }
 
   async function handleDeleteCampaigns() {
+    setDeleting(true);
     try {
-      if (!window.confirm('Hapus semua riwayat kampanye? Kontak dan template tidak akan terhapus.')) return;
       await db.campaigns.clear();
       showToast('Riwayat kampanye dihapus', 'success');
+      setConfirmDeleteCampaigns(false);
     } catch (error) {
       console.error('Error deleting campaigns:', error);
       showToast('Gagal menghapus riwayat kampanye', 'error');
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -209,14 +218,14 @@ export default function SettingsPage() {
               <p className="text-sm font-medium text-gray-700">Hapus Riwayat Kampanye</p>
               <p className="text-xs text-gray-500">Menghapus semua kampanye, tetapi kontak dan template tetap ada</p>
             </div>
-            <button onClick={handleDeleteCampaigns} className="px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-sm hover:bg-red-50 shrink-0">Hapus</button>
+            <button onClick={() => setConfirmDeleteCampaigns(true)} className="px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-sm hover:bg-red-50 shrink-0">Hapus</button>
           </div>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 border border-red-100 rounded-lg bg-red-50/50">
             <div>
               <p className="text-sm font-medium text-red-700">Hapus Semua Data</p>
               <p className="text-xs text-red-600">Menghapus seluruh data: kontak, template, kampanye, pengaturan</p>
             </div>
-            <button onClick={handleDeleteAll} className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 shrink-0 flex items-center gap-1">
+            <button onClick={() => setConfirmDeleteAll(true)} className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 shrink-0 flex items-center gap-1">
               <Trash2 className="w-3.5 h-3.5" /> Hapus Semua
             </button>
           </div>
@@ -238,6 +247,47 @@ export default function SettingsPage() {
           <p>• Pastikan Anda memiliki izin dari penerima sebelum mengirim pesan promosi sesuai kebijakan WhatsApp.</p>
         </div>
       </section>
+
+      {/* Confirm Delete All Data */}
+      <ConfirmDialog
+        open={confirmDeleteAll}
+        title="Hapus Semua Data?"
+        description={
+          <>
+            <p className="font-medium text-red-600">PERINGATAN: Tindakan ini sangat berbahaya!</p>
+            <p className="mt-2">Semua data akan dihapus permanen, termasuk:</p>
+            <ul className="mt-2 ml-4 list-disc text-gray-600 space-y-1">
+              <li>Semua kontak pelanggan</li>
+              <li>Semua template pesan</li>
+              <li>Semua kampanye dan riwayat</li>
+              <li>Pengaturan aplikasi</li>
+            </ul>
+            <p className="mt-3 text-gray-500">Sebaiknya buat backup terlebih dahulu. Tindakan ini tidak dapat dibatalkan.</p>
+          </>
+        }
+        confirmLabel="Ya, Hapus Semua"
+        variant="danger"
+        loading={deleting}
+        onConfirm={handleDeleteAll}
+        onCancel={() => setConfirmDeleteAll(false)}
+      />
+
+      {/* Confirm Delete Campaigns Only */}
+      <ConfirmDialog
+        open={confirmDeleteCampaigns}
+        title="Hapus Riwayat Kampanye?"
+        description={
+          <>
+            <p>Semua kampanye dan riwayatnya akan dihapus permanen.</p>
+            <p className="mt-2 text-gray-500">Kontak dan template <strong>tidak akan terhapus</strong>.</p>
+          </>
+        }
+        confirmLabel="Hapus Riwayat"
+        variant="warning"
+        loading={deleting}
+        onConfirm={handleDeleteCampaigns}
+        onCancel={() => setConfirmDeleteCampaigns(false)}
+      />
     </div>
   );
 }

@@ -197,16 +197,21 @@ export default function CampaignRunner({ campaignId }: Props) {
 
   /** Hentikan kampanye sepenuhnya */
   async function handleCancel() {
-    if (!campaign) return;
-    if (!confirm('Hentikan kampanye ini? Progres yang sudah ada akan tetap tersimpan.')) return;
-    const updated: Campaign = {
-      ...campaign,
-      status: 'cancelled',
-      completedAt: new Date().toISOString()
-    };
-    await db.campaigns.put(updated);
-    setCampaign(updated);
-    showToast('Kampanye dihentikan', 'info');
+    try {
+      if (!campaign) return;
+      if (!window.confirm('Hentikan kampanye ini? Progres yang sudah ada akan tetap tersimpan.')) return;
+      const updated: Campaign = {
+        ...campaign,
+        status: 'cancelled',
+        completedAt: new Date().toISOString()
+      };
+      await db.campaigns.put(updated);
+      setCampaign(updated);
+      showToast('Kampanye dihentikan', 'info');
+    } catch (error) {
+      console.error('Error cancelling campaign:', error);
+      showToast('Gagal menghentikan kampanye', 'error');
+    }
   }
 
   /**

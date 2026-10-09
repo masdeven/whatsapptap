@@ -68,20 +68,30 @@ export default function SettingsPage() {
   }
 
   async function handleDeleteAll() {
-    if (!confirm('PERINGATAN: Semua data akan dihapus permanen! Sebaiknya buat backup terlebih dahulu. Lanjutkan?')) return;
-    if (!confirm('Apakah Anda yakin? Tindakan ini tidak dapat dibatalkan.')) return;
-    await db.contacts.clear();
-    await db.templates.clear();
-    await db.campaigns.clear();
-    await saveSettings({ defaultCountryCode: '62', fallbackName: 'Kak', lastActiveCampaignId: null });
-    await refreshSettings();
-    showToast('Semua data telah dihapus', 'success');
+    try {
+      if (!window.confirm('PERINGATAN: Semua data akan dihapus permanen! Sebaiknya buat backup terlebih dahulu. Lanjutkan?')) return;
+      if (!window.confirm('Apakah Anda yakin? Tindakan ini tidak dapat dibatalkan.')) return;
+      await db.contacts.clear();
+      await db.templates.clear();
+      await db.campaigns.clear();
+      await saveSettings({ defaultCountryCode: '62', fallbackName: 'Kak', lastActiveCampaignId: null });
+      await refreshSettings();
+      showToast('Semua data telah dihapus', 'success');
+    } catch (error) {
+      console.error('Error deleting all data:', error);
+      showToast('Gagal menghapus data', 'error');
+    }
   }
 
   async function handleDeleteCampaigns() {
-    if (!confirm('Hapus semua riwayat kampanye? Kontak dan template tidak akan terhapus.')) return;
-    await db.campaigns.clear();
-    showToast('Riwayat kampanye dihapus', 'success');
+    try {
+      if (!window.confirm('Hapus semua riwayat kampanye? Kontak dan template tidak akan terhapus.')) return;
+      await db.campaigns.clear();
+      showToast('Riwayat kampanye dihapus', 'success');
+    } catch (error) {
+      console.error('Error deleting campaigns:', error);
+      showToast('Gagal menghapus riwayat kampanye', 'error');
+    }
   }
 
   return (

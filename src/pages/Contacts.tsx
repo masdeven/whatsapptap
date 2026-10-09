@@ -75,21 +75,31 @@ export default function Contacts() {
   // ===== AKSI INDIVIDUAL =====
 
   async function deleteContact(id: string) {
-    if (!confirm('Hapus kontak ini?')) return;
-    await db.contacts.delete(id);
-    showToast('Kontak dihapus', 'success');
-    loadData();
+    try {
+      if (!window.confirm('Hapus kontak ini?')) return;
+      await db.contacts.delete(id);
+      showToast('Kontak dihapus', 'success');
+      await loadData();
+    } catch (error) {
+      console.error('Error deleting contact:', error);
+      showToast('Gagal menghapus kontak', 'error');
+    }
   }
 
   // ===== AKSI MASSAL (BULK) =====
 
   async function deleteSelected() {
-    if (selected.size === 0) return;
-    if (!confirm(`Hapus ${selected.size} kontak terpilih?`)) return;
-    await db.contacts.bulkDelete(Array.from(selected));
-    setSelected(new Set());
-    showToast(`${selected.size} kontak dihapus`, 'success');
-    loadData();
+    try {
+      if (selected.size === 0) return;
+      if (!window.confirm(`Hapus ${selected.size} kontak terpilih?`)) return;
+      await db.contacts.bulkDelete(Array.from(selected));
+      setSelected(new Set());
+      showToast(`${selected.size} kontak dihapus`, 'success');
+      await loadData();
+    } catch (error) {
+      console.error('Error deleting contacts:', error);
+      showToast('Gagal menghapus kontak', 'error');
+    }
   }
 
   async function bulkUpdateConsent(consent: ConsentStatus) {
@@ -344,16 +354,26 @@ export default function Contacts() {
                     <td className="px-3 py-2.5">
                       <div className="flex gap-1 justify-end">
                         <button
-                          onClick={() => setEditContact(c)}
-                          className="p-1.5 hover:bg-gray-100 rounded"
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditContact(c);
+                          }}
+                          className="p-2 hover:bg-gray-100 rounded cursor-pointer"
+                          title="Edit kontak"
                         >
-                          <Edit2 className="w-3.5 h-3.5 text-gray-500" />
+                          <Edit2 className="w-4 h-4 text-gray-500" />
                         </button>
                         <button
-                          onClick={() => deleteContact(c.id)}
-                          className="p-1.5 hover:bg-red-50 rounded"
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteContact(c.id);
+                          }}
+                          className="p-2 hover:bg-red-50 rounded cursor-pointer"
+                          title="Hapus kontak"
                         >
-                          <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                          <Trash2 className="w-4 h-4 text-red-500" />
                         </button>
                       </div>
                     </td>

@@ -22,10 +22,15 @@ export default function Templates() {
   }
 
   async function deleteTemplate(id: string) {
-    if (!confirm('Hapus template ini?')) return;
-    await db.templates.delete(id);
-    showToast('Template dihapus', 'success');
-    loadTemplates();
+    try {
+      if (!window.confirm('Hapus template ini?')) return;
+      await db.templates.delete(id);
+      showToast('Template dihapus', 'success');
+      await loadTemplates();
+    } catch (error) {
+      console.error('Error deleting template:', error);
+      showToast('Gagal menghapus template', 'error');
+    }
   }
 
   async function duplicateTemplate(t: Template) {

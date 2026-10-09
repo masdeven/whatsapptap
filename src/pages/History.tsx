@@ -26,10 +26,15 @@ export default function HistoryPage() {
   }
 
   async function deleteCampaign(id: string) {
-    if (!confirm('Hapus kampanye ini beserta seluruh riwayatnya?')) return;
-    await db.campaigns.delete(id);
-    showToast('Kampanye dihapus', 'success');
-    loadCampaigns();
+    try {
+      if (!window.confirm('Hapus kampanye ini beserta seluruh riwayatnya?')) return;
+      await db.campaigns.delete(id);
+      showToast('Kampanye dihapus', 'success');
+      await loadCampaigns();
+    } catch (error) {
+      console.error('Error deleting campaign:', error);
+      showToast('Gagal menghapus kampanye', 'error');
+    }
   }
 
   function exportReport(c: Campaign) {

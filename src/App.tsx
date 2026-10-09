@@ -10,7 +10,7 @@
  * @module App
  */
 
-import { useState, useEffect, createContext, useContext, useCallback } from 'react';
+import { useState, useEffect, createContext, useContext, useCallback, useRef } from 'react';
 import { HashRouter, Routes, Route, NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -147,7 +147,7 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
               onClick={onClose}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  isActive || (item.to === '/' && location.pathname === '/')
+                  isActive
                     ? 'bg-green-50 text-green-700'
                     : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                 }`
@@ -180,23 +180,42 @@ function AppLayout() {
     lastActiveCampaignId: null
   });
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const toastCounter = useRef(0);
+  const timeoutIds = useRef<Set<NodeJS.Timeout>>(new Set());
 
   /** Muat pengaturan dari database */
   const refreshSettings = useCallback(async () => {
-    const s = await getDefaultSettings();
-    setSettings(s);
+    try {
+      const s = await getDefaultSettings();
+      setSettings(s);
+    } catch (error) {
+      console.error('Error loading settings:', error);
+    }
   }, []);
 
   useEffect(() => {
     refreshSettings();
   }, [refreshSettings]);
 
+  // Cleanup timeouts saat unmount
+  useEffect(() => {
+    return () => {
+      timeoutIds.current.forEach(id => clearTimeout(id));
+    };
+  }, []);
+
   /** Tampilkan notifikasi toast */
   const showToast = useCallback(
     (message: string, type: 'success' | 'error' | 'info' = 'info') => {
-      const id = Date.now().toString();
+      const id = `${Date.now()}-${toastCounter.current++}`;
       setToasts(prev => [...prev, { id, message, type }]);
-      setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
+      
+      const timeoutId = setTimeout(() => {
+        setToasts(prev => prev.filter(t => t.id !== id));
+        timeoutIds.current.delete(timeoutId);
+      }, 4000);
+      
+      timeoutIds.current.add(timeoutId);
     },
     []
   );

@@ -9,7 +9,7 @@
  * @module CampaignWizard
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, ArrowLeft, Send, AlertTriangle } from 'lucide-react';
 import { db } from '../db';
@@ -50,34 +50,39 @@ export default function CampaignWizard() {
   }, []);
 
   async function loadData() {
-    const [t, c] = await Promise.all([db.templates.toArray(), db.contacts.toArray()]);
-    setTemplates(t.sort((a, b) => a.name.localeCompare(b.name)));
-    setContacts(c);
+    try {
+      const [t, c] = await Promise.all([db.templates.toArray(), db.contacts.toArray()]);
+      setTemplates(t.sort((a, b) => a.name.localeCompare(b.name)));
+      setContacts(c);
 
-    // Kumpulkan semua grup unik dari kontak
-    const allGroups = new Set<string>();
-    c.forEach(ct => ct.groups.forEach(g => allGroups.add(g)));
-    setGroups(Array.from(allGroups).sort());
+      // Kumpulkan semua grup unik dari kontak
+      const allGroups = new Set<string>();
+      c.forEach(ct => ct.groups.forEach(g => allGroups.add(g)));
+      setGroups(Array.from(allGroups).sort());
+    } catch (error) {
+      console.error('Error loading data:', error);
+      showToast('Gagal memuat data. Silakan refresh halaman.', 'error');
+    }
   }
 
   /**
    * Filter kontak yang memenuhi syarat untuk menerima broadcast
    * Syarat: status aktif, sudah memberi izin, nomor valid
    */
-  const eligibleContacts = contacts.filter(c => {
+  const eligibleContacts = useMemo(() => contacts.filter(c => {
     if (c.status !== 'active') return false;
     if (c.consent !== 'granted') return false;
     const norm = c.phoneNormalized;
     if (!norm || norm.length < 8) return false;
     return true;
-  });
+  }), [contacts]);
 
   /**
    * Pilih penerima berdasarkan mode yang dipilih pengguna
    * - group: filter berdasarkan grup yang dipilih
    * - manual: filter berdasarkan kontak yang dipilih manual
    */
-  const selectedRecipients = (() => {
+  const selectedRecipients = useMemo(() => {
     if (selectionMode === 'group') {
       return eligibleContacts.filter((c: Contact) =>
         c.groups.some((g: string) => selectedGroups.includes(g))
@@ -86,24 +91,26 @@ export default function CampaignWizard() {
       return eligibleContacts.filter((c: Contact) => manualSelected.has(c.id));
     }
     return eligibleContacts;
-  })();
+  }, [selectionMode, eligibleContacts, selectedGroups, manualSelected]);
 
   /**
    * Hilangkan duplikat berdasarkan nomor telepon yang sudah dinormalisasi
    * Penting untuk mencegah pengiriman ganda ke nomor yang sama
    */
-  const uniqueRecipients = (() => {
+  const uniqueRecipients = useMemo(() => {
     const seen = new Set<string>();
     return selectedRecipients.filter(c => {
       if (seen.has(c.phoneNormalized)) return false;
       seen.add(c.phoneNormalized);
       return true;
     });
-  })();
+  }, [selectedRecipients]);
 
   // Hitung statistik untuk ditampilkan ke pengguna
-  const noConsentCount = contacts.filter((c: Contact) => c.consent !== 'granted').length;
-  const inactiveCount = contacts.filter((c: Contact) => c.status !== 'active').length;
+  const { noConsentCount, inactiveCount } = useMemo(() => ({
+    noConsentCount: contacts.filter((c: Contact) => c.consent !== 'granted').length,
+    inactiveCount: contacts.filter((c: Contact) => c.status !== 'active').length
+  }), [contacts]);
 
   /**
    * Mulai kampanye - simpan ke database dan navigasi ke halaman pengiriman
@@ -111,7 +118,11 @@ export default function CampaignWizard() {
   async function startCampaign() {
     if (!campaignName.trim() || !selectedTemplate || uniqueRecipients.length === 0) return;
 
-    const template = templates.find(t => t.id === selectedTemplate)!;
+    const template = templates.find(t => t.id === selectedTemplate);
+    if (!template) {
+      showToast('Template tidak ditemukan. Silakan pilih template lain.', 'error');
+      return;
+    }
 
     // Buat snapshot penerima - perubahan kontak di masa depan tidak mempengaruhi kampanye ini
     const recipients: CampaignRecipient[] = uniqueRecipients.map(c => ({
@@ -134,9 +145,14 @@ export default function CampaignWizard() {
       completedAt: null
     };
 
-    await db.campaigns.add(campaign);
-    showToast('Kampanye dimulai!', 'success');
-    navigate(`/broadcast/${campaign.id}`);
+    try {
+      await db.campaigns.add(campaign);
+      showToast('Kampanye dimulai!', 'success');
+      navigate(`/broadcast/${campaign.id}`);
+    } catch (error) {
+      console.error('Error creating campaign:', error);
+      showToast('Gagal membuat kampanye. Silakan coba lagi.', 'error');
+    }
   }
 
   const selTemplate = templates.find(t => t.id === selectedTemplate);

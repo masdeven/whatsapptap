@@ -113,72 +113,82 @@ export async function exportAllData(): Promise<string> {
  *
  * @returns Objek dengan jumlah data yang diimpor
  *
- * @throws Error jika format JSON tidak valid
+ * @throws Error jika format JSON tidak valid atau proses impor gagal
  */
 export async function importBackup(
   json: string,
   mode: 'merge' | 'replace'
 ): Promise<{ contacts: number; templates: number; campaigns: number }> {
-  const data = JSON.parse(json);
+  let data;
+  try {
+    data = JSON.parse(json);
+  } catch (error) {
+    throw new Error('Format JSON tidak valid: ' + (error as Error).message);
+  }
 
   // Validasi struktur backup
-  if (!data.version || !data.contacts || !data.templates) {
-    throw new Error('Format backup tidak valid');
+  if (!data.version || !Array.isArray(data.contacts) || !Array.isArray(data.templates)) {
+    throw new Error('Format backup tidak valid: struktur data tidak sesuai');
   }
 
-  // Mode replace: hapus semua data lama terlebih dahulu
-  if (mode === 'replace') {
-    await db.contacts.clear();
-    await db.templates.clear();
-    await db.campaigns.clear();
-  }
-
-  // Impor kontak
-  if (data.contacts?.length) {
-    if (mode === 'merge') {
-      // Mode merge: hanya tambah yang belum ada
-      for (const c of data.contacts) {
-        const existing = await db.contacts.get(c.id);
-        if (!existing) await db.contacts.add(c);
-      }
-    } else {
-      // Mode replace: timpa semua
-      await db.contacts.bulkPut(data.contacts);
+  try {
+    // Mode replace: hapus semua data lama terlebih dahulu
+    if (mode === 'replace') {
+      await db.contacts.clear();
+      await db.templates.clear();
+      await db.campaigns.clear();
     }
-  }
 
-  // Impor template
-  if (data.templates?.length) {
-    if (mode === 'merge') {
-      for (const t of data.templates) {
-        const existing = await db.templates.get(t.id);
-        if (!existing) await db.templates.add(t);
+    // Impor kontak
+    if (data.contacts?.length) {
+      if (mode === 'merge') {
+        // Mode merge: hanya tambah yang belum ada
+        for (const c of data.contacts) {
+          const existing = await db.contacts.get(c.id);
+          if (!existing) await db.contacts.add(c);
+        }
+      } else {
+        // Mode replace: timpa semua
+        await db.contacts.bulkPut(data.contacts);
       }
-    } else {
-      await db.templates.bulkPut(data.templates);
     }
-  }
 
-  // Impor kampanye
-  if (data.campaigns?.length) {
-    if (mode === 'merge') {
-      for (const c of data.campaigns) {
-        const existing = await db.campaigns.get(c.id);
-        if (!existing) await db.campaigns.add(c);
+    // Impor template
+    if (data.templates?.length) {
+      if (mode === 'merge') {
+        for (const t of data.templates) {
+          const existing = await db.templates.get(t.id);
+          if (!existing) await db.templates.add(t);
+        }
+      } else {
+        await db.templates.bulkPut(data.templates);
       }
-    } else {
-      await db.campaigns.bulkPut(data.campaigns);
     }
-  }
 
-  // Impor pengaturan
-  if (data.settings) {
-    await saveSettings(data.settings);
-  }
+    // Impor kampanye
+    if (data.campaigns?.length) {
+      if (mode === 'merge') {
+        for (const c of data.campaigns) {
+          const existing = await db.campaigns.get(c.id);
+          if (!existing) await db.campaigns.add(c);
+        }
+      } else {
+        await db.campaigns.bulkPut(data.campaigns);
+      }
+    }
 
-  return {
-    contacts: data.contacts?.length || 0,
-    templates: data.templates?.length || 0,
-    campaigns: data.campaigns?.length || 0
-  };
+    // Impor pengaturan
+    if (data.settings) {
+      await saveSettings(data.settings);
+    }
+
+    return {
+      contacts: data.contacts?.length || 0,
+      templates: data.templates?.length || 0,
+      campaigns: data.campaigns?.length || 0
+    };
+  } catch (error) {
+    console.error('Error importing backup:', error);
+    throw new Error('Gagal mengimpor backup: ' + (error as Error).message);
+  }
 }

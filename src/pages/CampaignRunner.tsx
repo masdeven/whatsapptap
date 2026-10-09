@@ -61,24 +61,30 @@ export default function CampaignRunner({ campaignId }: Props) {
    * Otomatis mencari kontak pertama yang berstatus 'pending'
    */
   const loadCampaign = useCallback(async () => {
-    const c = await db.campaigns.get(campaignId);
-    if (!c) {
-      navigate('/broadcast');
-      return;
-    }
-    setCampaign(c);
+    try {
+      const c = await db.campaigns.get(campaignId);
+      if (!c) {
+        navigate('/broadcast');
+        return;
+      }
+      setCampaign(c);
 
-    // Cari kontak pertama yang belum diproses
-    const firstPending = c.recipients.findIndex(r => r.status === 'pending');
-    if (firstPending >= 0 && currentIndex === 0) {
-      setCurrentIndex(firstPending);
+      // Cari kontak pertama yang belum diproses
+      const firstPending = c.recipients.findIndex(r => r.status === 'pending');
+      if (firstPending >= 0) {
+        setCurrentIndex(firstPending);
+      }
+      setLoading(false);
+    } catch (error) {
+      console.error('Error loading campaign:', error);
+      showToast('Gagal memuat kampanye', 'error');
+      setLoading(false);
     }
-    setLoading(false);
-  }, [campaignId, currentIndex, navigate]);
+  }, [campaignId, navigate, showToast]);
 
   useEffect(() => {
     loadCampaign();
-  }, [campaignId]);
+  }, [loadCampaign]);
 
   // Tampilkan loading spinner saat data sedang dimuat
   if (loading || !campaign) {
@@ -120,26 +126,31 @@ export default function CampaignRunner({ campaignId }: Props) {
   async function updateRecipientStatus(index: number, status: RecipientStatus) {
     if (!campaign) return;
 
-    const updated = [...campaign.recipients];
-    updated[index] = {
-      ...updated[index],
-      status,
-      statusChangedAt: new Date().toISOString()
-    };
+    try {
+      const updated = [...campaign.recipients];
+      updated[index] = {
+        ...updated[index],
+        status,
+        statusChangedAt: new Date().toISOString()
+      };
 
-    const newCampaign: Campaign = { ...campaign, recipients: updated };
+      const newCampaign: Campaign = { ...campaign, recipients: updated };
 
-    // Cek apakah semua sudah diproses
-    const allDone = updated.every(r => r.status !== 'pending');
-    if (allDone) {
-      newCampaign.completedAt = new Date().toISOString();
+      // Cek apakah semua sudah diproses
+      const allDone = updated.every(r => r.status !== 'pending');
+      if (allDone) {
+        newCampaign.completedAt = new Date().toISOString();
+      }
+      if (allDone && newCampaign.status === 'running') {
+        newCampaign.status = 'completed';
+      }
+
+      await db.campaigns.put(newCampaign);
+      setCampaign(newCampaign);
+    } catch (error) {
+      console.error('Error updating recipient status:', error);
+      showToast('Gagal memperbarui status. Silakan coba lagi.', 'error');
     }
-    if (allDone && newCampaign.status === 'running') {
-      newCampaign.status = 'completed';
-    }
-
-    await db.campaigns.put(newCampaign);
-    setCampaign(newCampaign);
   }
 
   /**
@@ -183,19 +194,29 @@ export default function CampaignRunner({ campaignId }: Props) {
   /** Jeda kampanye - bisa dilanjutkan nanti */
   async function handlePause() {
     if (!campaign) return;
-    const updated: Campaign = { ...campaign, status: 'paused' };
-    await db.campaigns.put(updated);
-    setCampaign(updated);
-    showToast('Kampanye dijeda', 'info');
+    try {
+      const updated: Campaign = { ...campaign, status: 'paused' };
+      await db.campaigns.put(updated);
+      setCampaign(updated);
+      showToast('Kampanye dijeda', 'info');
+    } catch (error) {
+      console.error('Error pausing campaign:', error);
+      showToast('Gagal menjeda kampanye', 'error');
+    }
   }
 
   /** Lanjutkan kampanye yang sedang dijeda */
   async function handleResume() {
     if (!campaign) return;
-    const updated: Campaign = { ...campaign, status: 'running' };
-    await db.campaigns.put(updated);
-    setCampaign(updated);
-    showToast('Kampanye dilanjutkan', 'info');
+    try {
+      const updated: Campaign = { ...campaign, status: 'running' };
+      await db.campaigns.put(updated);
+      setCampaign(updated);
+      showToast('Kampanye dilanjutkan', 'info');
+    } catch (error) {
+      console.error('Error resuming campaign:', error);
+      showToast('Gagal melanjutkan kampanye', 'error');
+    }
   }
 
   /** Hentikan kampanye sepenuhnya */

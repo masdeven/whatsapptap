@@ -90,12 +90,17 @@ export function normalizePhone(
  * @param phoneNormalized - Nomor telepon yang sudah dinormalisasi (tanpa + atau spasi)
  * @param message - Isi pesan yang akan dikirim
  * @returns URL WhatsApp yang siap digunakan
+ * @throws Error jika nomor telepon tidak valid
  *
  * @example
  * buildWhatsAppUrl('628123456789', 'Halo Budi!')
  * // returns 'https://wa.me/628123456789?text=Halo%20Budi!'
  */
 export function buildWhatsAppUrl(phoneNormalized: string, message: string): string {
+  if (!phoneNormalized || phoneNormalized.length < 8) {
+    throw new Error('Nomor telepon tidak valid untuk membuat URL WhatsApp');
+  }
+  
   const encoded = encodeURIComponent(message);
   return `https://wa.me/${phoneNormalized}?text=${encoded}`;
 }
@@ -124,9 +129,18 @@ export function renderTemplate(
   const name = contact.name?.trim() || fallbackName;
   const groups = contact.groups?.join(', ') || '-';
 
+  // Gunakan string replacement untuk menghindari regex injection
   let result = body;
-  result = result.replace(/\{nama\}/gi, name);
-  result = result.replace(/\{grup\}/gi, groups);
+  
+  // Replace semua variasi case untuk {nama}
+  result = result.split('{nama}').join(name);
+  result = result.split('{Nama}').join(name);
+  result = result.split('{NAMA}').join(name);
+  
+  // Replace semua variasi case untuk {grup}
+  result = result.split('{grup}').join(groups);
+  result = result.split('{Grup}').join(groups);
+  result = result.split('{GRUP}').join(groups);
 
   return result;
 }

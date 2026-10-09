@@ -57,14 +57,20 @@ export default function Contacts() {
 
   async function loadData() {
     setLoading(true);
-    const all = await db.contacts.toArray();
-    setContacts(all);
+    try {
+      const all = await db.contacts.toArray();
+      setContacts(all);
 
-    // Kumpulkan semua grup unik
-    const allGroups = new Set<string>();
-    all.forEach(c => c.groups.forEach(g => allGroups.add(g)));
-    setGroups(Array.from(allGroups).sort());
-    setLoading(false);
+      // Kumpulkan semua grup unik
+      const allGroups = new Set<string>();
+      all.forEach(c => c.groups.forEach(g => allGroups.add(g)));
+      setGroups(Array.from(allGroups).sort());
+    } catch (error) {
+      console.error('Error loading contacts:', error);
+      showToast('Gagal memuat kontak', 'error');
+    } finally {
+      setLoading(false);
+    }
   }
 
   /** Filter kontak berdasarkan pencarian dan filter yang aktif */
@@ -123,25 +129,40 @@ export default function Contacts() {
   }
 
   async function bulkUpdateConsent(consent: ConsentStatus) {
-    for (const id of selected) {
-      const c = await db.contacts.get(id);
-      if (c) await db.contacts.update(id, { consent, updatedAt: new Date().toISOString() });
+    try {
+      const now = new Date().toISOString();
+      const updates = Array.from(selected).map(id => 
+        db.contacts.update(id, { consent, updatedAt: now })
+      );
+      
+      await Promise.all(updates);
+      showToast(`Status izin ${selected.size} kontak diperbarui`, 'success');
+      setSelected(new Set());
+      await loadData();
+    } catch (error) {
+      console.error('Error bulk updating consent:', error);
+      showToast('Gagal memperbarui status izin', 'error');
     }
-    showToast(`Status izin ${selected.size} kontak diperbarui`, 'success');
-    setSelected(new Set());
-    loadData();
   }
 
   async function bulkToggleActive(active: boolean) {
-    for (const id of selected) {
-      await db.contacts.update(id, {
-        status: active ? 'active' : 'inactive',
-        updatedAt: new Date().toISOString()
-      });
+    try {
+      const now = new Date().toISOString();
+      const updates = Array.from(selected).map(id =>
+        db.contacts.update(id, {
+          status: active ? 'active' : 'inactive',
+          updatedAt: now
+        })
+      );
+      
+      await Promise.all(updates);
+      showToast(`${selected.size} kontak ${active ? 'diaktifkan' : 'dinonaktifkan'}`, 'success');
+      setSelected(new Set());
+      await loadData();
+    } catch (error) {
+      console.error('Error bulk toggling active status:', error);
+      showToast('Gagal mengubah status kontak', 'error');
     }
-    showToast(`${selected.size} kontak ${active ? 'diaktifkan' : 'dinonaktifkan'}`, 'success');
-    setSelected(new Set());
-    loadData();
   }
 
   // ===== EKSPOR =====

@@ -60,6 +60,35 @@ export default function SettingsPage() {
 
   async function handleRestore() {
     if (!restoreData) return;
+    
+    // ⚠️ PERINGATAN: Buat backup otomatis sebelum restore (mode replace)
+    if (restoreMode === 'replace') {
+      try {
+        const autoBackup = await exportAllData();
+        const blob = new Blob([autoBackup], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `auto-backup-before-restore-${Date.now()}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        
+        showToast('Backup otomatis dibuat sebelum restore', 'info');
+        
+        // Tunggu user konfirmasi
+        const confirmed = window.confirm(
+          'Backup otomatis telah diunduh. Lanjutkan restore? Data saat ini akan diganti.'
+        );
+        if (!confirmed) return;
+      } catch (error) {
+        console.error('Error creating auto backup:', error);
+        const confirmed = window.confirm(
+          'Gagal membuat backup otomatis. Lanjutkan restore? Data saat ini mungkin hilang.'
+        );
+        if (!confirmed) return;
+      }
+    }
+    
     try {
       const result = await importBackup(JSON.stringify(restoreData), restoreMode);
       showToast(`Data dipulihkan: ${result.contacts} kontak, ${result.templates} template, ${result.campaigns} kampanye`, 'success');

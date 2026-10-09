@@ -131,6 +131,27 @@ export async function importBackup(
     throw new Error('Format backup tidak valid: struktur data tidak sesuai');
   }
 
+  // ⚠️ PERINGATAN: Cek kelengkapan data sebelum replace
+  if (mode === 'replace') {
+    const hasContacts = data.contacts?.length > 0;
+    const hasTemplates = data.templates?.length > 0;
+    const hasCampaigns = data.campaigns?.length > 0;
+    
+    // Jika backup tidak lengkap, berikan warning
+    if (!hasContacts || !hasTemplates || !hasCampaigns) {
+      const missing = [];
+      if (!hasContacts) missing.push('kontak');
+      if (!hasTemplates) missing.push('template');
+      if (!hasCampaigns) missing.push('kampanye');
+      
+      throw new Error(
+        `Backup tidak lengkap (tidak ada ${missing.join(', ')}). ` +
+        `Mode replace akan menghapus semua data yang ada. ` +
+        `Gunakan mode merge atau backup yang lebih lengkap.`
+      );
+    }
+  }
+
   try {
     // Mode replace: hapus semua data lama terlebih dahulu
     if (mode === 'replace') {
@@ -139,17 +160,34 @@ export async function importBackup(
       await db.campaigns.clear();
     }
 
+    // Validasi data integrity kontak
+    const validContacts = (data.contacts || []).filter((c: any) => {
+      if (!c.id || typeof c.id !== 'string') return false;
+      if (!c.name || typeof c.name !== 'string') return false;
+      if (!c.phone || typeof c.phone !== 'string') return false;
+      if (!c.phoneNormalized || typeof c.phoneNormalized !== 'string') return false;
+      if (!Array.isArray(c.groups)) return false;
+      if (!['granted', 'unconfirmed', 'declined'].includes(c.consent)) return false;
+      if (!['active', 'inactive'].includes(c.status)) return false;
+      return true;
+    });
+    
+    const invalidContactCount = (data.contacts || []).length - validContacts.length;
+    if (invalidContactCount > 0) {
+      console.warn(`${invalidContactCount} kontak tidak valid dan akan dilewati`);
+    }
+
     // Impor kontak
-    if (data.contacts?.length) {
+    if (validContacts.length) {
       if (mode === 'merge') {
         // Mode merge: hanya tambah yang belum ada
-        for (const c of data.contacts) {
+        for (const c of validContacts) {
           const existing = await db.contacts.get(c.id);
           if (!existing) await db.contacts.add(c);
         }
       } else {
         // Mode replace: timpa semua
-        await db.contacts.bulkPut(data.contacts);
+        await db.contacts.bulkPut(validContacts);
       }
     }
 

@@ -49,19 +49,43 @@ export default function HistoryPage() {
   }
 
   function exportReport(c: Campaign) {
-    const data = c.recipients.map(r => ({
-      Nama: r.contactName,
-      Nomor: r.contactPhone,
-      Status: getRecipientStatusLabel(r.status),
-      Waktu: r.statusChangedAt ? formatDateTime(r.statusChangedAt) : '-'
-    }));
-    const csv = Papa.unparse(data);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `laporan-${c.name}-${Date.now()}.csv`; a.click();
-    URL.revokeObjectURL(url);
-    showToast('Laporan diekspor', 'success');
+    if (!c.recipients || c.recipients.length === 0) {
+      showToast('Kampanye ini tidak memiliki data penerima', 'error');
+      return;
+    }
+    
+    try {
+      const data = c.recipients.map(r => ({
+        'Nama Penerima': r.contactName || '',
+        'Nomor WhatsApp': r.contactPhone || '',
+        'Nomor (Normalized)': r.phoneNormalized || '',
+        'Status Pengiriman': getRecipientStatusLabel(r.status),
+        'Waktu Perubahan': r.statusChangedAt ? formatDateTime(r.statusChangedAt) : '-',
+        'Nama Kampanye': c.name,
+        'Tanggal Kampanye': formatDate(c.createdAt)
+      }));
+      
+      const csv = Papa.unparse(data, {
+        quotes: true,
+        delimiter: ',',
+        header: true
+      });
+      
+      // Add BOM untuk Excel
+      const BOM = '\uFEFF';
+      const blob = new Blob([BOM + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T').join('_').split('.')[0];
+      a.download = `laporan-${c.name.replace(/[^a-z0-9]/gi, '-')}-${timestamp}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast(`Laporan ${c.recipients.length} penerima diekspor`, 'success');
+    } catch (error) {
+      console.error('Error exporting report:', error);
+      showToast('Gagal mengekspor laporan', 'error');
+    }
   }
 
   const filtered = campaigns.filter(c => {

@@ -168,23 +168,41 @@ export default function Contacts() {
   // ===== EKSPOR =====
 
   function exportCSV() {
-    const data = filtered.map(c => ({
-      Nama: c.name,
-      Nomor: c.phone,
-      Kelompok: c.groups.join('; '),
-      Izin: getConsentLabel(c.consent),
-      Status: c.status === 'active' ? 'Aktif' : 'Tidak Aktif',
-      Catatan: c.notes
-    }));
-    const csv = Papa.unparse(data);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `kontak-${Date.now()}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast('Kontak diekspor', 'success');
+    try {
+      const data = filtered.map(c => ({
+        Nama: c.name || '',
+        Nomor: c.phone || '',
+        'Nomor (Normalized)': c.phoneNormalized || '',
+        Kelompok: (c.groups || []).join('; '),
+        Izin: getConsentLabel(c.consent),
+        Status: c.status === 'active' ? 'Aktif' : 'Tidak Aktif',
+        Catatan: (c.notes || '').replace(/\n/g, ' ') // Remove newlines
+      }));
+      
+      const csv = Papa.unparse(data, {
+        quotes: true, // Always quote fields
+        quoteChar: '"',
+        escapeChar: '"',
+        delimiter: ',',
+        header: true,
+        newline: '\r\n' // Windows-compatible
+      });
+      
+      // Add BOM untuk Excel compatibility
+      const BOM = '\uFEFF';
+      const blob = new Blob([BOM + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T').join('_').split('.')[0];
+      a.download = `kontak-${timestamp}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast(`${filtered.length} kontak diekspor`, 'success');
+    } catch (error) {
+      console.error('Error exporting CSV:', error);
+      showToast('Gagal mengekspor kontak', 'error');
+    }
   }
 
   // ===== SELEKSI =====

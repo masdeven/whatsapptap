@@ -18,6 +18,7 @@ import { Upload, X, Check, AlertTriangle } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { db } from '../db';
+import { useAppContext } from '../App';
 import type { Contact, ConsentStatus, ImportRow, ParsedContact, ColumnMapping } from '../types';
 import { normalizePhone, generateId } from '../utils';
 
@@ -31,6 +32,7 @@ interface Props {
  * Wizard import kontak dari file CSV/Excel
  */
 export default function ImportWizard({ defaultCountryCode, onClose, onDone }: Props) {
+  const { showToast } = useAppContext();
   const [step, setStep] = useState(1);
   const [rawData, setRawData] = useState<ImportRow[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
@@ -50,6 +52,18 @@ export default function ImportWizard({ defaultCountryCode, onClose, onDone }: Pr
    * Mendukung CSV, XLS, dan XLSX
    */
   function handleFile(file: File) {
+    // Validasi ukuran file
+    const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+    if (file.size > MAX_SIZE) {
+      showToast(`File terlalu besar (maksimal 10MB). Ukuran file: ${(file.size / 1024 / 1024).toFixed(2)}MB`, 'error');
+      return;
+    }
+    
+    if (file.size === 0) {
+      showToast('File kosong', 'error');
+      return;
+    }
+
     setFileName(file.name);
     const ext = file.name.split('.').pop()?.toLowerCase();
 
@@ -57,29 +71,73 @@ export default function ImportWizard({ defaultCountryCode, onClose, onDone }: Pr
       Papa.parse(file, {
         header: true,
         skipEmptyLines: true,
+        encoding: 'UTF-8', // Force UTF-8
         complete: result => {
+          // Validasi hasil parsing
+          if (result.errors && result.errors.length > 0) {
+            console.error('CSV parsing errors:', result.errors);
+            showToast(`File CSV memiliki ${result.errors.length} error. Beberapa data mungkin tidak bisa diimport.`, 'error');
+          }
+          
           const rows = result.data as ImportRow[];
           const hdrs = result.meta.fields || [];
+          
+          if (rows.length === 0) {
+            showToast('File CSV tidak memiliki data', 'error');
+            return;
+          }
+          
+          if (hdrs.length === 0) {
+            showToast('File CSV tidak memiliki header', 'error');
+            return;
+          }
+          
           setRawData(rows);
           setHeaders(hdrs);
           autoDetectMapping(hdrs);
           setStep(2);
+        },
+        error: (error) => {
+          console.error('CSV parsing error:', error);
+          showToast('Gagal membaca file CSV: ' + error.message, 'error');
         }
       });
     } else if (ext === 'xlsx' || ext === 'xls') {
       const reader = new FileReader();
       reader.onload = e => {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const wb = XLSX.read(data, { type: 'array' });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const json = XLSX.utils.sheet_to_json<ImportRow>(ws, { defval: '', raw: false });
-        const hdrs = json.length > 0 ? Object.keys(json[0]) : [];
-        setRawData(json);
-        setHeaders(hdrs);
-        autoDetectMapping(hdrs);
-        setStep(2);
+        try {
+          const data = new Uint8Array(e.target?.result as ArrayBuffer);
+          const wb = XLSX.read(data, { type: 'array' });
+          
+          if (!wb.SheetNames || wb.SheetNames.length === 0) {
+            showToast('File Excel tidak memiliki sheet', 'error');
+            return;
+          }
+          
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const json = XLSX.utils.sheet_to_json<ImportRow>(ws, { defval: '', raw: false });
+          
+          if (json.length === 0) {
+            showToast('File Excel tidak memiliki data', 'error');
+            return;
+          }
+          
+          const hdrs = Object.keys(json[0]);
+          setRawData(json);
+          setHeaders(hdrs);
+          autoDetectMapping(hdrs);
+          setStep(2);
+        } catch (error) {
+          console.error('Excel parsing error:', error);
+          showToast('Gagal membaca file Excel: ' + (error as Error).message, 'error');
+        }
+      };
+      reader.onerror = () => {
+        showToast('Gagal membaca file', 'error');
       };
       reader.readAsArrayBuffer(file);
+    } else {
+      showToast('Format file tidak didukung. Gunakan CSV, XLS, atau XLSX.', 'error');
     }
   }
 
@@ -170,49 +228,76 @@ export default function ImportWizard({ defaultCountryCode, onClose, onDone }: Pr
     const validRows = preview.filter(p => p.valid && (!p.isDuplicate || duplicateMode !== 'skip'));
     const now = new Date().toISOString();
     let imported = 0;
+    let updated = 0;
+    let skipped = 0;
 
-    for (const row of validRows) {
-      if (duplicateMode === 'update') {
-        // Mode update: timpa data kontak yang sudah ada
-        const existing = await db.contacts
-          .where('phoneNormalized')
-          .equals(row.phoneNormalized)
-          .first();
-        if (existing) {
-          await db.contacts.update(existing.id, {
-            name: row.name || existing.name,
-            groups: row.groups.length ? row.groups : existing.groups,
-            consent: row.consent !== 'unconfirmed' ? row.consent : existing.consent,
-            updatedAt: now
-          });
-          imported++;
-          continue;
+    // Gunakan transaction untuk atomicity
+    try {
+      await db.transaction('rw', db.contacts, async () => {
+        for (const row of validRows) {
+          try {
+            if (duplicateMode === 'update') {
+              // Mode update: timpa data kontak yang sudah ada
+              const existing = await db.contacts
+                .where('phoneNormalized')
+                .equals(row.phoneNormalized)
+                .first();
+              
+              if (existing) {
+                await db.contacts.update(existing.id, {
+                  name: row.name || existing.name,
+                  groups: row.groups.length ? row.groups : existing.groups,
+                  consent: row.consent !== 'unconfirmed' ? row.consent : existing.consent,
+                  updatedAt: now
+                });
+                updated++;
+                continue;
+              }
+            }
+
+            // Check lagi dalam transaction untuk mencegah race condition
+            const existing = await db.contacts
+              .where('phoneNormalized')
+              .equals(row.phoneNormalized)
+              .first();
+            
+            if (existing) {
+              skipped++;
+              continue;
+            }
+
+            await db.contacts.add({
+              id: generateId(),
+              name: row.name,
+              phone: row.phone,
+              phoneNormalized: row.phoneNormalized,
+              groups: row.groups,
+              consent: row.consent,
+              status: 'active',
+              notes: '',
+              createdAt: now,
+              updatedAt: now
+            });
+            imported++;
+          } catch (error) {
+            console.error('Error importing contact:', row, error);
+            // Continue dengan row berikutnya
+          }
         }
-      }
-
-      // Mode skip: lewati jika sudah ada
-      const existing = await db.contacts
-        .where('phoneNormalized')
-        .equals(row.phoneNormalized)
-        .first();
-      if (existing) continue;
-
-      await db.contacts.add({
-        id: generateId(),
-        name: row.name,
-        phone: row.phone,
-        phoneNormalized: row.phoneNormalized,
-        groups: row.groups,
-        consent: row.consent,
-        status: 'active',
-        notes: '',
-        createdAt: now,
-        updatedAt: now
       });
-      imported++;
-    }
 
-    setStep(5);
+      // Tampilkan statistik lengkap
+      const message = [];
+      if (imported > 0) message.push(`${imported} kontak baru`);
+      if (updated > 0) message.push(`${updated} kontak diperbarui`);
+      if (skipped > 0) message.push(`${skipped} kontak dilewati (duplikat)`);
+      
+      showToast(`Import selesai: ${message.join(', ')}`, 'success');
+      setStep(5);
+    } catch (error) {
+      console.error('Transaction failed:', error);
+      showToast('Gagal mengimpor kontak. Silakan coba lagi.', 'error');
+    }
   }
 
   // Hitung statistik preview

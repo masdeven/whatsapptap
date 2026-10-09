@@ -16,7 +16,14 @@ export default function SettingsPage() {
   const [deleting, setDeleting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Validasi settings
+  const isSettingsValid = countryCode.trim() !== '' && /^\d+$/.test(countryCode) && fallbackName.trim() !== '';
+
   async function handleSaveSettings() {
+    if (!isSettingsValid) {
+      showToast('Perbaiki data yang tidak valid terlebih dahulu', 'error');
+      return;
+    }
     await saveSettings({ ...settings, defaultCountryCode: countryCode, fallbackName });
     await refreshSettings();
     showToast('Pengaturan disimpan', 'success');
@@ -147,21 +154,56 @@ export default function SettingsPage() {
         </div>
         <div className="space-y-3">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Kode Negara Default</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Kode Negara Default *</label>
             <div className="flex items-center gap-2">
               <span className="text-gray-500 text-sm">+</span>
-              <input value={countryCode} onChange={e => setCountryCode(e.target.value.replace(/\D/g, ''))}
-                className="w-24 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+              <input 
+                value={countryCode} 
+                onChange={e => setCountryCode(e.target.value.replace(/\D/g, ''))}
+                className={`w-24 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${
+                  countryCode.trim() !== '' && !/^\d+$/.test(countryCode)
+                    ? 'border-red-300 focus:ring-red-500'
+                    : 'border-gray-200 focus:ring-green-500'
+                }`} 
+              />
               <span className="text-xs text-gray-400 ml-2">Contoh: 62 untuk Indonesia</span>
             </div>
+            {countryCode.trim() !== '' && !/^\d+$/.test(countryCode) && (
+              <p className="text-xs text-red-500 mt-1">✗ Kode negara harus berupa angka</p>
+            )}
+            {countryCode.trim() === '' && (
+              <p className="text-xs text-red-500 mt-1">✗ Kode negara wajib diisi</p>
+            )}
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nama Fallback</label>
-            <input value={fallbackName} onChange={e => setFallbackName(e.target.value)}
-              className="w-full max-w-xs px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+            <label className="block text-sm font-medium text-gray-700 mb-1">Nama Fallback *</label>
+            <input 
+              value={fallbackName} 
+              onChange={e => setFallbackName(e.target.value)}
+              className={`w-full max-w-xs px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${
+                fallbackName.trim() === ''
+                  ? 'border-red-300 focus:ring-red-500'
+                  : 'border-gray-200 focus:ring-green-500'
+              }`} 
+            />
             <p className="text-xs text-gray-400 mt-1">Digunakan saat nama pelanggan kosong dalam template. Contoh: "Kak", "Bapak/Ibu"</p>
+            {fallbackName.trim() === '' && (
+              <p className="text-xs text-red-500 mt-1">✗ Nama fallback wajib diisi</p>
+            )}
           </div>
-          <button onClick={handleSaveSettings} className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">
+          
+          {/* Validation Summary */}
+          {!isSettingsValid && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <p className="text-xs text-red-700">⚠️ Perbaiki data yang ditandai merah sebelum menyimpan</p>
+            </div>
+          )}
+          
+          <button 
+            onClick={handleSaveSettings} 
+            disabled={!isSettingsValid}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             <Save className="w-4 h-4" /> Simpan Pengaturan
           </button>
         </div>

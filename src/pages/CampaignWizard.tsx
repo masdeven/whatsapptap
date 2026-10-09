@@ -186,9 +186,14 @@ export default function CampaignWizard() {
               <input
                 value={campaignName}
                 onChange={e => setCampaignName(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${
+                  campaignName.trim() === '' ? 'border-red-300 focus:ring-red-500' : 'border-gray-200 focus:ring-green-500'
+                }`}
                 placeholder="Promo Akhir Tahun 2024"
               />
+              {campaignName.trim() === '' && (
+                <p className="text-xs text-red-500 mt-1">✗ Nama kampanye wajib diisi</p>
+              )}
             </div>
 
             <div>
@@ -209,18 +214,25 @@ export default function CampaignWizard() {
                   </p>
                 </div>
               ) : (
-                <select
-                  value={selectedTemplate}
-                  onChange={e => setSelectedTemplate(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                >
-                  <option value="">— Pilih template —</option>
-                  {templates.map(t => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                    </option>
-                  ))}
-                </select>
+                <>
+                  <select
+                    value={selectedTemplate}
+                    onChange={e => setSelectedTemplate(e.target.value)}
+                    className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${
+                      selectedTemplate === '' ? 'border-red-300 focus:ring-red-500' : 'border-gray-200 focus:ring-green-500'
+                    }`}
+                  >
+                    <option value="">— Pilih template —</option>
+                    {templates.map(t => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedTemplate === '' && (
+                    <p className="text-xs text-red-500 mt-1">✗ Template wajib dipilih</p>
+                  )}
+                </>
               )}
               {selTemplate && (
                 <div className="mt-2 bg-gray-50 rounded-lg p-3">
@@ -230,11 +242,23 @@ export default function CampaignWizard() {
               )}
             </div>
 
+            {/* Validation Summary */}
+            {(!campaignName.trim() || !selectedTemplate) && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <p className="text-xs text-red-700 font-medium mb-1">⚠️ Perbaiki data berikut:</p>
+                <ul className="text-xs text-red-600 space-y-0.5">
+                  {!campaignName.trim() && <li>• Nama kampanye wajib diisi</li>}
+                  {!selectedTemplate && templates.length > 0 && <li>• Template wajib dipilih</li>}
+                </ul>
+              </div>
+            )}
+
             <div className="flex justify-end">
               <button
                 onClick={() => setStep(2)}
                 disabled={!campaignName.trim() || !selectedTemplate}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                title={!campaignName.trim() || !selectedTemplate ? 'Lengkapi semua field yang wajib diisi' : ''}
               >
                 Lanjut <ArrowRight className="w-4 h-4" />
               </button>
@@ -361,6 +385,13 @@ export default function CampaignWizard() {
               </p>
             </div>
 
+            {/* Validation Summary */}
+            {uniqueRecipients.length === 0 && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <p className="text-xs text-red-700">⚠️ Tidak ada penerima yang memenuhi syarat. Pilih minimal 1 kontak.</p>
+              </div>
+            )}
+
             <div className="flex justify-between">
               <button
                 onClick={() => setStep(1)}
@@ -371,7 +402,8 @@ export default function CampaignWizard() {
               <button
                 onClick={() => setStep(3)}
                 disabled={uniqueRecipients.length === 0}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                title={uniqueRecipients.length === 0 ? 'Pilih minimal 1 penerima' : ''}
               >
                 Lanjut <ArrowRight className="w-4 h-4" />
               </button>

@@ -67,12 +67,20 @@ export default function ContactModal({ contact, defaultCountryCode, onSave, onCl
             <input
               value={phone}
               onChange={e => setPhone(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${
+                phone && !norm.valid
+                  ? 'border-red-300 focus:ring-red-500'
+                  : 'border-gray-200 focus:ring-green-500'
+              }`}
               placeholder="08123456789"
             />
             {phone && (
               <p className={`text-xs mt-1 ${norm.valid ? 'text-green-600' : 'text-red-500'}`}>
-                Format: {norm.normalized} {norm.warning && `(${norm.warning})`}
+                {norm.valid ? (
+                  <>✓ Format valid: {norm.normalized}</>
+                ) : (
+                  <>✗ {norm.warning || 'Nomor tidak valid'}</>
+                )}
               </p>
             )}
           </div>
@@ -117,31 +125,46 @@ export default function ContactModal({ contact, defaultCountryCode, onSave, onCl
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-gray-100 flex justify-end gap-2">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
-          >
-            Batal
-          </button>
-          <button
-            onClick={() =>
-              onSave({
-                name,
-                phone,
-                groups: groups
-                  .split(',')
-                  .map(g => g.trim())
-                  .filter(Boolean),
-                consent,
-                notes
-              })
-            }
-            disabled={!name.trim() || !phone.trim()}
-            className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {contact ? 'Simpan Perubahan' : 'Tambah Kontak'}
-          </button>
+        <div className="p-4 border-t border-gray-100 flex flex-col gap-3">
+          {/* Validation Summary */}
+          {(!name.trim() || !phone.trim() || (phone && !norm.valid)) && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <p className="text-xs text-red-700 font-medium mb-1">⚠️ Perbaiki data berikut:</p>
+              <ul className="text-xs text-red-600 space-y-0.5">
+                {!name.trim() && <li>• Nama wajib diisi</li>}
+                {!phone.trim() && <li>• Nomor WhatsApp wajib diisi</li>}
+                {phone && !norm.valid && <li>• {norm.warning || 'Nomor WhatsApp tidak valid'}</li>}
+              </ul>
+            </div>
+          )}
+          
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
+            >
+              Batal
+            </button>
+            <button
+              onClick={() =>
+                onSave({
+                  name,
+                  phone,
+                  groups: groups
+                    .split(',')
+                    .map(g => g.trim())
+                    .filter(Boolean),
+                  consent,
+                  notes
+                })
+              }
+              disabled={!name.trim() || !phone.trim() || !norm.valid}
+              className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              title={!norm.valid ? 'Perbaiki nomor WhatsApp terlebih dahulu' : ''}
+            >
+              {contact ? 'Simpan Perubahan' : 'Tambah Kontak'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

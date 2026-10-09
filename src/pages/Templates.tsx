@@ -173,13 +173,29 @@ function TemplateEditor({ template, fallbackName, onSave, onClose }: {
         <div className="p-4 space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Nama Template *</label>
-            <input value={name} onChange={e => setName(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500" placeholder="Promo Mingguan" />
+            <input 
+              value={name} 
+              onChange={e => setName(e.target.value)} 
+              className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 ${
+                name.trim() === '' ? 'border-red-300 focus:ring-red-500' : 'border-gray-200 focus:ring-green-500'
+              }`} 
+              placeholder="Promo Mingguan" 
+            />
+            {name.trim() === '' && (
+              <p className="text-xs text-red-500 mt-1">✗ Nama template wajib diisi</p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Isi Pesan *</label>
-            <textarea value={body} onChange={e => setBody(e.target.value)} rows={6}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 font-mono"
-              placeholder="Halo {nama}, ada promo spesial minggu ini!" />
+            <textarea 
+              value={body} 
+              onChange={e => setBody(e.target.value)} 
+              rows={6}
+              className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 font-mono ${
+                body.trim() === '' ? 'border-red-300 focus:ring-red-500' : 'border-gray-200 focus:ring-green-500'
+              }`}
+              placeholder="Halo {nama}, ada promo spesial minggu ini!" 
+            />
             <div className="flex items-center justify-between mt-1">
               <span className="text-xs text-gray-400">{charCount} karakter</span>
               <div className="flex gap-1">
@@ -187,6 +203,9 @@ function TemplateEditor({ template, fallbackName, onSave, onClose }: {
                 <button onClick={() => setBody(body + '{grup}')} className="px-2 py-0.5 bg-green-50 text-green-700 rounded text-xs hover:bg-green-100">+ {'{grup}'}</button>
               </div>
             </div>
+            {body.trim() === '' && (
+              <p className="text-xs text-red-500 mt-1">✗ Isi pesan wajib diisi</p>
+            )}
           </div>
 
           {unknown.length > 0 && (
@@ -204,10 +223,28 @@ function TemplateEditor({ template, fallbackName, onSave, onClose }: {
             <p className="text-xs text-blue-700">💡 Placeholder yang tersedia: <code>{'{nama}'}</code> untuk nama pelanggan, <code>{'{grup}'}</code> untuk kelompok. Jika nama kosong, akan diganti dengan "{fallbackName}".</p>
           </div>
         </div>
+        
+        {/* Validation Summary */}
+        {(!name.trim() || !body.trim()) && (
+          <div className="px-4 pb-2">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <p className="text-xs text-red-700 font-medium mb-1">⚠️ Perbaiki data berikut:</p>
+              <ul className="text-xs text-red-600 space-y-0.5">
+                {!name.trim() && <li>• Nama template wajib diisi</li>}
+                {!body.trim() && <li>• Isi pesan wajib diisi</li>}
+              </ul>
+            </div>
+          </div>
+        )}
+        
         <div className="p-4 border-t border-gray-100 flex justify-end gap-2">
           <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Batal</button>
-          <button onClick={() => onSave(name, body)} disabled={!name.trim() || !body.trim()}
-            className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50">
+          <button 
+            onClick={() => onSave(name, body)} 
+            disabled={!name.trim() || !body.trim()}
+            className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            title={!name.trim() || !body.trim() ? 'Lengkapi semua field yang wajib diisi' : ''}
+          >
             {template ? 'Simpan Perubahan' : 'Buat Template'}
           </button>
         </div>
